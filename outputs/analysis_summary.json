@@ -1,6 +1,7 @@
 {
   "rows_used": 949,
   "countries_represented": 48,
+  "silhouette_at_k5": 0.28143021229114173,
   "cluster_profile": {
     "subscribers": {
       "0.0": 36500000.0,
@@ -51,5 +52,45 @@
       "3.0": 114,
       "4.0": 175
     }
-  }
+  },
+  "cluster_exemplars": {
+    "0": [
+      "T-Series",
+      "MrBeast",
+      "Cocomelon - Nursery Rhymes",
+      "SET India",
+      "\u00fd\u00fd\u00fd Kids Diana Show"
+    ],
+    "1": [
+      "Ricis Official",
+      "MR. INDIAN HACKER",
+      "TheDonato",
+      "Shemaroo Movies",
+      "\u00fd\u00fd\u00fd Kids Roma Show"
+    ],
+    "2": [
+      "whinderssonnunes",
+      "CarryMinati",
+      "YouTube",
+      "Jess No Limit",
+      "Dream"
+    ],
+    "3": [
+      "Goldmines",
+      "5-Minute Crafts",
+      "T-Series Bhakti Sagar",
+      "LooLoo Kids - Nursery Rhymes and Children's Songs",
+      "Billie Eilish"
+    ],
+    "4": [
+      "Aaj Tak",
+      "HAR PAL GEO",
+      "ABS-CBN Entertainment",
+      "ARY Digital HD",
+      "WorkpointOfficial"
+    ]
+  },
+  "teaching_animation_frames": 51,
+  "earnings_band_ratio_median": 16.0,
+  "earnings_band_ratio_p90": 16.229423421650292
 }

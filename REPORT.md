@@ -1,82 +1,90 @@
 # Five Archetypes at the Top of YouTube: Creator Segmentation on the Global Top-995
 
-The Global YouTube Statistics 2023 dataset has 995 top creators profiled at a single moment in mid-2023, with subscriber counts, lifetime video views, upload counts, country, category, and a handful of derived statistics. It is very much a snapshot — numbers have shifted since — so the useful work isn't forecasting anything forward. It's finding the structure in what's there. KMeans at k=5 produces a segmentation that maps cleanly onto five recognisable archetypes of top creator, which is a more interesting output than another ranking of MrBeast.
+The Global YouTube Statistics 2023 dataset holds 995 of the platform's largest channels profiled at a single moment in mid-2023, with subscriber counts, lifetime video views, upload counts, country, category, and a handful of derived statistics. It is a snapshot rather than a time series, and trying to forecast from it is the wrong operation. The useful move is structure: KMeans at k=5 on standardised log-features produces a segmentation that maps onto five recognisable creator archetypes.
 
 ## The data
 
-995 rows, 28 columns. 949 of the rows survive a basic filter for positive subscriber count, video views, and upload count. 48 countries represented. The dataset is scraped from Social Blade and was last updated mid-2023, which means the numbers are a sample at a point in time rather than a live API response.
+995 rows and 28 columns. 949 rows survive a filter for positive subscriber count, video views, and upload count. 48 countries appear. The dataset originates from Social Blade and was last refreshed mid-2023, so the numbers reflect the top-of-distribution YouTube as it looked at that moment.
 
-The variables that matter for segmentation: subscribers, lifetime video views, total uploads, plus three derived ratios — views per subscriber (engagement efficiency), views per upload (virality per video), and uploads per million subscribers (posting frequency normalised to channel size). Log-transforming before standardising brings the feature scales into a range where KMeans doesn't get dominated by subscribers alone.
+The features that drive the segmentation are subscribers, lifetime video views, total uploads, and three derived ratios: views per subscriber (engagement efficiency), views per upload (virality per video), and uploads per million subscribers (posting frequency normalised to channel size). All six features are log-transformed before standardising so that KMeans is not dominated by the subscriber axis alone.
 
 ![Top 15 countries by channel count in the global top-995.](figures/top-countries.png)
 
-The US leads with the largest share of channels. India and Brazil are close seconds (India punches above its per-capita weight; Brazil below). The long tail of single-digit-count countries extends through most of the rest of Latin America, Europe, and the Gulf.
+The US leads with 313 channels, roughly 31 percent of the top-995. India and Brazil follow. The long tail of single-digit-count countries extends through Latin America, Europe, and the Gulf.
 
 ![Top 15 creator categories in the top-995.](figures/top-categories.png)
 
-Entertainment dominates the category ranking at 241 channels, followed by Music (201), People & Blogs (141), and Gaming (90). Education sits mid-pack at 46. News & Politics is notably sparse at 26, which makes sense given the dataset is drawn from top-subscriber-count channels rather than top-influence channels.
+Entertainment at 241 and Music at 201 jointly account for roughly 47 percent of the top-995. People & Blogs and Gaming follow. News & Politics sits at 26, which is consistent with a top-subscriber list rather than a top-influence list.
 
-## Subscribers vs. views is loosely linear
+## Method primer: KMeans on log-scaled count data
 
-![Log-log scatter of subscribers vs. lifetime video views.](figures/subs-vs-views.png)
+KMeans partitions a set of n points in d-dimensional space into k clusters by minimising the within-cluster sum of squared distances from each point to its assigned centroid. The algorithm alternates two steps and converges to a local minimum of that objective.
 
-On log scale, subscribers and views trace a roughly linear relationship — roughly an order of magnitude more views per order of magnitude more subscribers, consistent with the intuition that "more subscribers means more views, approximately proportionally". The scatter around that line is what the clustering picks apart.
+Step one is assignment: every point is assigned to the nearest centroid under Euclidean distance. Step two is update: every centroid moves to the mean of the points currently assigned to it. Those two steps repeat until assignments stop changing, which is guaranteed because each step monotonically decreases the objective and the number of possible assignments is finite. The result depends on initialisation, so scikit-learn runs the algorithm from multiple random starts (n_init=10) and keeps the fit with the lowest inertia.
 
-## Elbow says k=5
+Two practical decisions matter for count data like this. First, log-transformation: subscribers, views, and uploads span five or six orders of magnitude across the top-995, and raw Euclidean distance would be dominated by the one channel at 245 million subscribers. `np.log1p` compresses that spread. A channel at 245M lands at log(246M) around 19.3 while one at 10M lands at 16.1, turning a 24x multiplicative gap into a small additive one that KMeans can actually reason about. Second, standardisation: after log-transform, each feature is centred at zero with unit variance so that engagement ratios and raw subscriber scale contribute comparably to distances.
 
-![KMeans elbow plot: within-cluster SSE for k=2 through 10, bend around k=5.](figures/kmeans-elbow.png)
+The elbow method picks k by plotting within-cluster SSE as k grows. SSE decreases monotonically, so the signal is the bend where the rate of decrease flattens. Silhouette score is a complementary diagnostic: it measures how tight each cluster is relative to its neighbours and rewards separation. At k=5 the elbow bends and silhouette holds around 0.27, which is honest for socio-economic count data with blended edges and higher than any alternative k in the 2-10 sweep.
 
-I swept k from 2 to 10 and looked at the SSE curve. The bend sits between k=4 and k=5, and at k=5 the resulting clusters separate interpretably — adding a sixth cluster splits one of the existing groups along a dimension that doesn't correspond to an obvious archetype.
+## Subscribers vs. views is loosely linear on log-log
+
+![Log-log scatter of subscribers vs. lifetime video views with a fitted regression line.](figures/subs-vs-views.png)
+
+The log-log slope lands near 1.0 — an order of magnitude more subscribers tracks an order of magnitude more lifetime views. That relationship is what the clustering picks apart. The scatter around the line is the segmentation signal.
+
+## Elbow at k=5, silhouette holds at 0.27
+
+![KMeans elbow and silhouette vs. k from 2 to 10, with the k=5 choice marked.](figures/kmeans-elbow.png)
+
+SSE bends between k=4 and k=5. Silhouette at k=5 is 0.27. Adding a sixth cluster splits one of the existing groups along an axis that does not correspond to a recognisable archetype.
 
 ## Five archetypes
 
-| Cluster | Median subs | Median views | Median uploads | Views/sub | Count | Label |
-| ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 0 | 36.5M | 22.6B | 1,331 | 592 | 135 | **Mega-scale creators** |
-| 1 | 16.0M | 7.5B | 719 | 436 | 367 | **Mainstream large channels** |
-| 2 | 14.9M | 2.2B | 461 | 133 | 158 | **Underperforming-on-engagement large channels** |
-| 3 | 20.7M | 9.4B | 12 | 445 | 114 | **Music-video channels** |
-| 4 | 16.9M | 9.5B | 10,022 | 548 | 175 | **Upload machines** |
+| Cluster | Label | Median subs | Median views | Median uploads | Views/sub | n |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 0 | Mega-scale | 36.5M | 22.6B | 1,331 | 592 | 135 |
+| 1 | Mainstream | 16.0M | 7.5B | 719 | 436 | 367 |
+| 2 | Low engagement | 14.9M | 2.2B | 461 | 133 | 158 |
+| 3 | Music-video | 20.7M | 9.4B | 12 | 445 | 114 |
+| 4 | Upload machines | 16.9M | 9.5B | 10,022 | 548 | 175 |
 
-The labels are my reading, not the data's — but the clusters align with recognisable patterns.
+Cluster 0 is the top-tier scale phenomenon. 36.5M median subscribers, 22.6B median views, 1,331 median uploads. MrBeast, T-Series, Cocomelon, SET India, plus roughly a hundred other channels at similar scale. Views per subscriber of 592 means the average subscriber has watched nearly 600 videos on the channel over its lifetime.
 
-**Cluster 0** is the top-tier scale phenomenon. 36M median subscribers, 22B median views, 1,331 uploads. That's Mr. Beast, PewDiePie, the top 10 individual creators plus a hundred others at similar scale. The views-per-subscriber figure of 592 means each subscriber on average has watched 592 videos across the channel's lifetime — viewer depth per subscriber is extremely high.
+Cluster 1 is the mainstream large-channel group — 367 channels at 16M median subscribers and 7.5B median views. Big channels, not mega-scale. The largest bucket by count, roughly 39 percent of the segmentation.
 
-**Cluster 1** is the mainstream large-channel cluster — 367 channels at 16M median subscribers and 7.5B median views. Big channels, not mega-scale. This is the largest bucket in the segmentation.
+Cluster 2 is the finding that most needs explaining. 14.9M median subscribers but only 2.2B median views. Views per subscriber lands at 133, roughly a quarter of the ratio seen in every other cluster. Two patterns drive it. Some of these channels accumulated their subscriber base during a historical hit run and the audience mostly does not watch new uploads — kids'-content channels that rode YouTube's 2015-2020 recommendation algorithm sit heavily here. Others operate in short-form content where each upload reaches a small slice of the subscriber base rather than the whole audience.
 
-**Cluster 2** is interesting for what's missing. 14.9M median subscribers but only 2.2B median views. Views per subscriber is 133 — less than a quarter of the other clusters. These are channels with large subscriber counts but comparatively low engagement per subscriber. The explanation is usually one of two things: the subscribers were accumulated during a past hit run and most don't watch new content (common for kids'-content channels that acquired subscribers via YouTube's recommendation algorithm in 2015-2020), or the channel's audience is highly fragmented across shorter-form content where only a subset watches each upload.
+Cluster 3 is the music-video cluster. Median uploads: 12. An order of magnitude below any other cluster. 20.7M subscribers and 9.4B views from a handful of extremely viral releases. Major-label music channels and one-hit-wonder accounts. Views per upload is 668 million, the highest in the dataset by two orders of magnitude because each upload is a full music release that accumulates hundreds of millions of plays.
 
-**Cluster 3** is the music-video cluster. Median 12 uploads — an order of magnitude smaller than any other cluster. These channels have 20M subscribers and 9B views across just a handful of extremely viral videos. This is where the major-label music channels and the one-hit-wonder channels sit. Views per upload is 668 million — by far the highest in the dataset, because each video is a full music release that accumulates hundreds of millions of plays.
+Cluster 4 is the upload-machine cluster. 10,022 median uploads against 16.9M subscribers and 9.5B views. News networks, clip-compilation channels, daily-vlog channels, and automated content farms. Views per upload is 767,000, two orders of magnitude below the music-video cluster, but the high posting cadence compensates.
 
-**Cluster 4** is the upload-machine cluster. 10,022 median uploads, 16.9M subscribers, 9.5B views. News networks, clip compilation channels, daily-vlog channels, and automated content farms. Views per upload is just 767,000 — two orders of magnitude below the music-video cluster — but high posting volume compensates.
+![Cluster scatter on subscribers × views-per-subscriber, with archetypes colour-coded and the mega-scale and low-engagement clusters annotated.](figures/cluster-scatter.png)
 
-![Cluster scatter on subscribers × views-per-subscriber, with each cluster colour-coded.](figures/cluster-scatter.png)
+The two clusters that separate most visibly on this plane are mega-scale (upper right) and low engagement (below everyone else along the y-axis). Music-video and upload machines overlap here and only separate when uploads enters the distance computation as a third dimension.
 
-The two-dimensional scatter shows the clusters separating most cleanly on views-per-subscriber. Cluster 2 sits visibly below; cluster 0 sits visibly above; the others overlap in the middle band. Subscribers alone would not have separated these groups.
+![Animation: KMeans iterating from random centroid init through assign-then-update steps until convergence on log(subs) x log(views/sub).](figures/kmeans-teaching.gif)
 
-![Animation revealing each cluster in order by median subscriber count, from smallest to largest.](figures/cluster-reveal-animation.gif)
-
-The reveal animation steps through clusters from smallest to largest median-subscriber, highlighting each one on top of a faded scatter of the full population.
+The teaching animation shows KMeans working. Random centroids are placed on the plane. Points recolour to the nearest centroid (assignment step). Centroids jump to the mean of their newly-assigned points (update step). The two steps alternate. After roughly a dozen iterations the assignments stabilise and centroids stop moving. That is convergence to a local minimum of within-cluster variance.
 
 ## Country density per capita
 
-![Bar chart of top-995 channels per 10M population, countries with ≥5 top-995 channels.](figures/creator-density.png)
+![Bar chart of top-995 channels per 10 million population, countries with 5 or more top-995 channels.](figures/creator-density.png)
 
-Channels per capita paints a different ranking than raw channel count. Small English-speaking countries with concentrated creator economies punch above their weight — New Zealand, Ireland, Canada, the Netherlands. The US sits mid-pack once the calculation is per-capita; India ranks low once the 1.4 billion population is divided through. That's a reminder that the global top-995 is a top-subscriber-count list, not a top-influence-per-population list.
+Channels per 10M population paints a different ranking than raw count. Small English-speaking countries with concentrated creator economies sit at the top — New Zealand, Ireland, Canada, the Netherlands. The US lands mid-pack once the calculation is per capita. India drops far down once the 1.4 billion is divided through. The per-capita view is a reminder that a top-subscriber list is not the same as a top-influence-per-population list.
 
 ## Estimated earnings by category
 
-![Horizontal bar chart of estimated median yearly earnings by category, with Movies, News, and Entertainment at the top.](figures/category-earnings.png)
+![Horizontal bar chart of estimated median yearly earnings by category, with Social Blade band midpoints.](figures/category-earnings.png)
 
-The earnings estimates come from Social Blade's reported lowest-to-highest yearly earnings bands; I took the midpoint. Treat the absolute numbers with significant skepticism — they're rough estimates based on view count and an assumed CPM. The category ordering is probably more trustworthy than the absolute levels. News, Movies, and Entertainment top the ranking; Education and Science & Technology sit lower.
+Earnings estimates are the midpoint of Social Blade's reported lowest-to-highest yearly earnings band. Across the 904 rows with a positive lowest band, the median ratio between the high and low edges of the band is 16x and the 90th percentile is 16.2x. That is an order-of-magnitude uncertainty range, not a rounding question. Social Blade computes from view count under an assumed CPM, and actual creator revenue depends on sponsorships, merch, and content type in ways Social Blade cannot observe. The category ordering here is meaningful. The absolute dollar levels are not.
 
-## What this isn't
+## What this isn\'t
 
-Not a longitudinal analysis. The dataset is one snapshot from mid-2023, and the numbers have shifted since. Anyone drawing conclusions about creator-economy trends from this data is extrapolating from a single observation.
+Not a longitudinal analysis. The dataset is one snapshot from mid-2023, and the numbers have shifted since. Any claim about creator-economy trends is an extrapolation from a single observation.
 
-Not a representative sample of YouTube creators. It's the top 995 by subscriber count. The subscriber distribution on YouTube is long-tailed enough that the top 995 captures a vanishingly small fraction of the creator population but a significant fraction of total viewing hours. Any conclusions generalise only to the top of the distribution.
+Not a representative sample of YouTube creators. It is the top 995 by subscriber count. The subscriber distribution on YouTube is long-tailed enough that the top 995 captures a vanishingly small fraction of the creator population but a significant fraction of total viewing hours. The segmentation generalises only to the top of the distribution.
 
-The earnings numbers are estimates. Social Blade's "lowest to highest yearly earnings" is a CPM-based computation on view counts, not actual revenue. Creators routinely make more or less than those bands depending on sponsorship deals, merch, brand partnerships, and content type. The midpoint I used is an illustrative statistic, not a validated ground truth.
+The earnings numbers are estimates with a median 16x band width. The category ranking is the signal; the dollar levels are not.
 
 ## References
 
@@ -85,3 +93,5 @@ Nelgiriye Withana, N. (2023). *Global YouTube Statistics 2023* [Data set]. Kaggl
 Social Blade. (2023). *YouTube rankings and statistics*. https://socialblade.com
 
 MacQueen, J. (1967). Some methods for classification and analysis of multivariate observations. *Proceedings of the Fifth Berkeley Symposium on Mathematical Statistics and Probability*, 1, 281-297.
+
+Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., Blondel, M., Prettenhofer, P., Weiss, R., Dubourg, V., Vanderplas, J., Passos, A., Cournapeau, D., Brucher, M., Perrot, M., & Duchesnay, E. (2011). Scikit-learn: Machine learning in Python. *Journal of Machine Learning Research*, 12, 2825-2830.
